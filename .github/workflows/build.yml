@@ -1,0 +1,282 @@
+name: Build
+
+on:
+  pull_request:
+    paths:
+      - "submissions/**"
+  workflow_dispatch:
+    inputs:
+      app_dir:
+        description: "App folder to build, e.g. templates/flutter (warms the caches on main)"
+        required: true
+
+# SECURITY: this workflow runs untrusted PR code, so its token is read-only and it never touches secrets.
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      valid: ${{ steps.validate.outputs.valid }}
+      team: ${{ steps.validate.outputs.team }}
+      folder: ${{ steps.validate.outputs.folder }}
+      app_dir: ${{ steps.validate.outputs.app_dir }}
+    steps:
+      # SECURITY: persist-credentials false keeps the token out of .git/config, where PR code could read it.
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      # SECURITY: a PR can edit this script, so grade.yml re-runs the copy on main through the API and ignores this result.
+      - id: validate
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          DISPATCH_APP_DIR: ${{ inputs.app_dir }}
+        run: |
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "valid=true" >> "$GITHUB_OUTPUT"
+            echo "team=" >> "$GITHUB_OUTPUT"
+            echo "folder=" >> "$GITHUB_OUTPUT"
+            echo "app_dir=$DISPATCH_APP_DIR" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git diff --name-only HEAD^1 HEAD > changed-files.txt
+          python -I scripts/validate_submission.py --changed-files changed-files.txt --json-out validation.json
+          folder="$(python -I -c 'import json; print(json.load(open("validation.json"))["folder"])')"
+          echo "app_dir=${folder:+$folder/app}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: validation
+          path: validation.json
+          if-no-files-found: ignore
+
+  detect:
+    needs: validate
+    if: needs.validate.outputs.valid == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      stack: ${{ steps.detect.outputs.stack }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - id: detect
+        env:
+          APP_DIR: ${{ needs.validate.outputs.app_dir }}
+        run: echo "stack=$(bash scripts/detect_stack.sh "$APP_DIR")" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: [validate, detect]
+    if: needs.detect.outputs.stack != 'unknown'
+    runs-on: ${{ needs.detect.outputs.stack == 'ios' && 'macos-latest' || 'ubuntu-latest' }}
+    timeout-minutes: 15
+    outputs:
+      build_ok: ${{ steps.summary.outputs.build_ok }}
+      tests_ok: ${{ steps.summary.outputs.tests_ok }}
+      tests_found: ${{ steps.summary.outputs.tests_found }}
+    env:
+      APP_DIR: ${{ needs.validate.outputs.app_dir }}
+      STACK: ${{ needs.detect.outputs.stack }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@v5
+        if: env.STACK != 'ios'
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      # SECURITY: PR runs can only write caches scoped to their own PR, so one team can't poison another's build.
+      - uses: actions/cache@v4
+        if: env.STACK != 'ios'
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ env.STACK }}-${{ hashFiles(format('{0}/**/*.gradle*', env.APP_DIR), format('{0}/**/gradle-wrapper.properties', env.APP_DIR), format('{0}/**/libs.versions.toml', env.APP_DIR)) }}
+          restore-keys: |
+            gradle-${{ runner.os }}-${{ env.STACK }}-
+
+      - uses: subosito/flutter-action@v2
+        if: env.STACK == 'flutter'
+        with:
+          channel: stable
+          cache: true
+
+      - uses: actions/setup-node@v5
+        if: env.STACK == 'react-native'
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: ${{ env.APP_DIR }}/package-lock.json
+
+      - uses: actions/cache@v4
+        if: env.STACK == 'ios'
+        with:
+          path: ~/spm
+          key: spm-${{ hashFiles(format('{0}/**/Package.resolved', env.APP_DIR)) }}
+          restore-keys: |
+            spm-
+
+      - name: Pick an iOS simulator
+        if: env.STACK == 'ios'
+        run: |
+          udid="$(xcrun simctl list devices available -j | python3 -I -c '
+          import json, sys
+          devices = json.load(sys.stdin)["devices"]
+          runtimes = sorted((k for k in devices if "iOS" in k), reverse=True)
+          print(next(d["udid"] for k in runtimes for d in devices[k] if d["name"].startswith("iPhone")))
+          ')"
+          echo "SIMULATOR=$udid" >> "$GITHUB_ENV"
+
+      - name: Build
+        id: build
+        continue-on-error: true
+        working-directory: ${{ env.APP_DIR }}
+        run: |
+          set -o pipefail
+          {
+            case "$STACK" in
+              android|kmp) chmod +x gradlew && ./gradlew assembleDebug --no-daemon ;;
+              flutter) flutter build apk --debug ;;
+              react-native) npm ci && (cd android && chmod +x gradlew && ./gradlew assembleDebug --no-daemon) ;;
+              ios) xcodebuild build -scheme App -destination "platform=iOS Simulator,id=$SIMULATOR" -clonedSourcePackagesDirPath ~/spm CODE_SIGNING_ALLOWED=NO ;;
+            esac
+          } 2>&1 | tee "$RUNNER_TEMP/build.log"
+
+      - name: Test
+        id: test
+        continue-on-error: true
+        working-directory: ${{ env.APP_DIR }}
+        run: |
+          set -o pipefail
+          {
+            case "$STACK" in
+              android|kmp) ./gradlew testDebugUnitTest --no-daemon ;;
+              flutter) flutter test ;;
+              react-native) npx jest --ci --json --outputFile="$RUNNER_TEMP/jest.json" ;;
+              ios) xcodebuild test -scheme App -destination "platform=iOS Simulator,id=$SIMULATOR" -clonedSourcePackagesDirPath ~/spm CODE_SIGNING_ALLOWED=NO ;;
+            esac
+          } 2>&1 | tee "$RUNNER_TEMP/test.log"
+
+      - name: Summarise
+        id: summary
+        if: always()
+        env:
+          BUILD_OUTCOME: ${{ steps.build.outcome }}
+          TEST_OUTCOME: ${{ steps.test.outcome }}
+        run: |
+          tests_found="$(python3 -I - <<'PY'
+          import glob, json, os, re
+          from pathlib import Path
+          stack, app, tmp = os.environ["STACK"], os.environ["APP_DIR"], os.environ["RUNNER_TEMP"]
+          count = 0
+          if stack in ("android", "kmp"):
+              for xml in glob.glob(f"{app}/**/build/test-results/testDebugUnitTest/*.xml", recursive=True):
+                  match = re.search(r'tests="(\d+)"', Path(xml).read_text(errors="replace"))
+                  count += int(match.group(1)) if match else 0
+          elif stack == "flutter":
+              count = len(glob.glob(f"{app}/test/**/*_test.dart", recursive=True))
+          elif stack == "react-native":
+              report = Path(tmp, "jest.json")
+              count = json.loads(report.read_text()).get("numTotalTests", 0) if report.exists() else 0
+          elif stack == "ios":
+              log = Path(tmp, "test.log")
+              found = re.findall(r"Executed (\d+) tests?", log.read_text(errors="replace")) if log.exists() else []
+              count = max(map(int, found), default=0)
+          print("true" if count > 0 else "false")
+          PY
+          )"
+          build_ok=$([ "$BUILD_OUTCOME" = "success" ] && echo true || echo false)
+          tests_ok=$([ "$TEST_OUTCOME" = "success" ] && [ "$tests_found" = "true" ] && echo true || echo false)
+          echo "build_ok=$build_ok" >> "$GITHUB_OUTPUT"
+          echo "tests_ok=$tests_ok" >> "$GITHUB_OUTPUT"
+          echo "tests_found=$tests_found" >> "$GITHUB_OUTPUT"
+          mkdir -p logs
+          tail -n 80 "$RUNNER_TEMP/build.log" > logs/build.log 2>/dev/null || true
+          tail -n 80 "$RUNNER_TEMP/test.log" > logs/test.log 2>/dev/null || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: logs
+          path: logs/
+          if-no-files-found: ignore
+
+  report:
+    needs: [validate, detect, build]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/download-artifact@v5
+        continue-on-error: true
+        with:
+          name: logs
+          path: logs
+
+      # SECURITY: untrusted values reach the script only through env vars, never through ${{ }} in the script body.
+      - name: Write result.json
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          TEAM: ${{ needs.validate.outputs.team }}
+          STACK: ${{ needs.detect.outputs.stack }}
+          VALID: ${{ needs.validate.outputs.valid }}
+          BUILD_OK: ${{ needs.build.outputs.build_ok }}
+          TESTS_OK: ${{ needs.build.outputs.tests_ok }}
+          TESTS_FOUND: ${{ needs.build.outputs.tests_found }}
+        run: |
+          mkdir -p result
+          python3 -I - <<'PY'
+          import json, os
+          from pathlib import Path
+
+          def read(path):
+              file = Path(path)
+              return file.read_text(errors="replace") if file.exists() else ""
+
+          def flag(name):
+              return os.environ.get(name) == "true"
+
+          pr = os.environ.get("PR_NUMBER")
+          result = {
+              "pr_number": int(pr) if pr else None,
+              "head_sha": os.environ["HEAD_SHA"],
+              "team": os.environ.get("TEAM", ""),
+              "stack": os.environ.get("STACK") or "unknown",
+              "valid": flag("VALID"),
+              "build_ok": flag("BUILD_OK"),
+              "tests_ok": flag("TESTS_OK"),
+              "tests_found": flag("TESTS_FOUND"),
+              "build_log_tail": read("logs/build.log"),
+              "test_log_tail": read("logs/test.log"),
+          }
+          Path("result/result.json").write_text(json.dumps(result, indent=2))
+          print(json.dumps({k: v for k, v in result.items() if not k.endswith("_tail")}, indent=2))
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: result
+          path: result/result.json
