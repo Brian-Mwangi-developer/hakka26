@@ -1,0 +1,75 @@
+name: Grade
+
+on:
+  workflow_run:
+    workflows: [Build]
+    types: [requested, completed]
+
+# SECURITY: this workflow holds the API key and a write token, so it only ever runs code from main.
+# actions: read is needed to download the result artifact from the Build run.
+permissions:
+  contents: write
+  pull-requests: write
+  actions: read
+
+concurrency:
+  group: grade-${{ github.event.workflow_run.head_repository.full_name }}-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
+
+jobs:
+  building:
+    if: github.event.action == 'requested' && github.event.workflow_run.event == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # SECURITY: workflow_run checks out main by default; PR code is never checked out or executed here.
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Mark the PR as building
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: python -I grader/grade.py --mark-building "$HEAD_SHA"
+
+  grade:
+    if: github.event.action == 'completed' && github.event.workflow_run.event == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      # SECURITY: workflow_run checks out main by default; PR code is never checked out or executed here.
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: grader/requirements.txt
+
+      - run: pip install -r grader/requirements.txt
+
+      # SECURITY: the artifact was produced by untrusted code, so it is only read as data and grade.py parses it strictly.
+      - uses: actions/download-artifact@v5
+        continue-on-error: true
+        with:
+          name: result
+          path: result
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      # SECURITY: grade.py checks the PR's live head SHA against this run and re-validates the files through the API with the copy on main.
+      - name: Grade
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          HACK_DEADLINE: ${{ vars.HACK_DEADLINE }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          RECEIVED_AT: ${{ github.event.workflow_run.created_at }}
+        run: python -I grader/grade.py --result result/result.json --run-head-sha "$HEAD_SHA" --received-at "$RECEIVED_AT"
