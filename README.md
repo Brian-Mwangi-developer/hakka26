@@ -5,7 +5,7 @@ A 30-minute, AI-graded mobile hackathon at **droidcon Kenya 2026**.
 **One prompt. One screen. 30 minutes. KES 42,000.**
 
 - The challenge is [issue #1](../../issues/1): build an OTP verification screen.
-- Leaderboard: https://mambobryan.github.io/hakkahakka26/
+- Leaderboard: https://mambobryan.github.io/hakka26/
 - Full rules: [RULES.md](RULES.md)
 
 ## How it works

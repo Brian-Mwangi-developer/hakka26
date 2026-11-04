@@ -7,7 +7,7 @@ labels: challenge
 
 Build this screen in your stack of choice with **one AI prompt**. Commit that prompt, verbatim, as `PROMPT.md`.
 
-![Reference](https://raw.githubusercontent.com/MamboBryan/hakkahakka26/main/reference/otp-reference.png)
+![Reference](https://raw.githubusercontent.com/MamboBryan/hakka26/main/reference/otp-reference.png)
 
 ## Copy on screen (exact)
 
@@ -43,4 +43,4 @@ Use these so humans can verify quickly: `otp_digit_1` … `otp_digit_6`, `otp_su
 
 ## Submitting
 
-Fork, copy a template from `templates/` into `submissions/<team-name>/app/`, and open a PR. See the [README](https://github.com/MamboBryan/hakkahakka26#readme).
+Fork, copy a template from `templates/` into `submissions/<team-name>/app/`, and open a PR. See the [README](https://github.com/MamboBryan/hakka26#readme).
