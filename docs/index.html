@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>hakkahakka26 leaderboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;700;800&family=Geist+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --fog-ink: #070B1A;
+    --clear-white: #FFFFFF;
+    --thamani-blue: #0050FF;
+    --signal-blue: #0095FE;
+    --clear-cyan: #05D3FF;
+    --acid-lemon: #E8FF3A;
+    --muted: rgba(255, 255, 255, 0.62);
+    --line: rgba(255, 255, 255, 0.12);
+    --row: rgba(255, 255, 255, 0.04);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--fog-ink); color: var(--clear-white); }
+  body { font-family: "Geist", system-ui, sans-serif; font-size: clamp(16px, 1.6vw, 26px); line-height: 1.35; }
+  .num { font-family: "Geist Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+
+  header {
+    background: var(--thamani-blue);
+    padding: clamp(16px, 2.5vw, 40px) clamp(16px, 4vw, 64px);
+    display: flex; flex-wrap: wrap; align-items: center; gap: clamp(12px, 2vw, 32px);
+  }
+  .brand { display: flex; align-items: center; gap: clamp(10px, 1.4vw, 24px); flex: 1 1 auto; min-width: 0; }
+  .brand svg { width: clamp(44px, 5vw, 88px); height: auto; flex: none; }
+  h1 { margin: 0; font-weight: 800; font-size: clamp(30px, 5vw, 84px); letter-spacing: -0.03em; line-height: 1; }
+  .prize { margin-top: 6px; font-weight: 500; font-size: clamp(15px, 1.6vw, 26px); }
+  .clock { text-align: right; }
+  .clock .label { font-size: clamp(12px, 1vw, 18px); text-transform: uppercase; letter-spacing: 0.12em; opacity: 0.85; }
+  .clock .value { color: var(--clear-cyan); font-weight: 700; font-size: clamp(34px, 5.5vw, 96px); line-height: 1; }
+  .clock.ended .value { color: var(--clear-white); }
+
+  main { padding: clamp(12px, 2vw, 32px) clamp(16px, 4vw, 64px) 48px; }
+  .notice { color: var(--muted); font-size: 0.8em; min-height: 1.4em; margin-bottom: 8px; }
+  .notice.warn { color: var(--clear-white); }
+
+  .board { position: relative; }
+  .head, .row {
+    display: grid;
+    grid-template-columns: 2.6em minmax(0, 1fr) 7.5em 5.4em minmax(0, 15em) 7.5em 3.4em;
+    align-items: center; gap: 0.8em; padding: 0.55em 0.8em;
+  }
+  .head { color: var(--muted); font-size: 0.7em; text-transform: uppercase; letter-spacing: 0.1em; border-bottom: 1px solid var(--line); }
+  .row { border-bottom: 1px solid var(--line); background: var(--row); transition: transform 600ms cubic-bezier(.2,.8,.2,1); will-change: transform; }
+  .row.first { background: var(--thamani-blue); border-radius: 10px; border-bottom-color: transparent; }
+  .rank { font-weight: 700; font-size: 1.2em; }
+  .team { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .team small { display: block; font-weight: 400; color: var(--muted); font-size: 0.6em; }
+  .row.first .team small { color: rgba(255,255,255,0.8); }
+  .badge { display: inline-block; padding: 0.15em 0.55em; border-radius: 999px; border: 1px solid var(--line); font-size: 0.7em; white-space: nowrap; }
+  .score { font-weight: 700; font-size: 1.35em; white-space: nowrap; }
+  .score small { font-size: 0.55em; font-weight: 400; color: var(--muted); }
+  .score .hl { background: var(--acid-lemon); color: var(--fog-ink); padding: 0 0.2em; }
+  .score .hl + small { color: inherit; }
+  .breakdown { font-size: 0.7em; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row.first .breakdown { color: rgba(255,255,255,0.85); }
+  .chip { display: inline-block; padding: 0.15em 0.6em; border-radius: 999px; font-size: 0.68em; font-weight: 600; background: var(--signal-blue); color: var(--clear-white); white-space: nowrap; }
+  .chip.idle { background: transparent; border: 1px solid var(--signal-blue); }
+  .chip.demo { background: var(--clear-white); color: var(--thamani-blue); margin-left: 0.4em; }
+  .flags { font-size: 1em; text-align: center; }
+  .empty { padding: 2em 0.8em; color: var(--muted); }
+
+  @media (max-width: 720px) {
+    header { flex-direction: column; align-items: flex-start; }
+    .clock { text-align: left; }
+    .head, .row { grid-template-columns: 2em minmax(0, 1fr) 4.4em 2em; gap: 0.5em; padding: 0.6em 0.4em; }
+    .head .c-stack, .head .c-breakdown, .head .c-status,
+    .row .c-stack, .row .c-breakdown { display: none; }
+    .row .c-status { grid-column: 2 / 4; grid-row: 2; }
+    .row .flags { grid-row: 1; grid-column: 4; }
+  }
+  @media (prefers-reduced-motion: reduce) { .row { transition: none; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <svg viewBox="0 0 500 399" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Thamani">
+      <path d="M275.986 16.2238L235.622 90.0629L358.121 141.804C384.036 160.147 383.719 184.566 373.025 205.546C349.347 245.609 299.047 331.076 289.305 354.277C279.631 377.315 294.59 390.852 303.576 394.869C326.662 405.017 345.753 390.006 352.412 381.232L495.118 130.071C509.071 101.213 490.361 73.3059 473.553 65.3778L325.457 3.85599C300.087 -6.60907 282.645 6.49868 275.986 16.2238Z" fill="white"/>
+      <path d="M233.491 212.206L114.887 162.417L82.5409 149.098C58.9469 139.965 42.5834 152.27 35.2895 161.783L20.3848 186.836L5.47985 214.743C-11.0105 249.753 13.6193 273.093 27.9956 280.387L236.662 367.279C218.269 353.643 221.441 337.152 223.978 331.444L254.739 273.728C269.643 239.161 244.591 216.963 233.491 212.206Z" fill="#B8B8B8"/>
+      <path d="M155.796 89.1621L114.57 162.417L233.491 212.206C264.443 229.965 260.975 259.774 255.373 272.459L223.978 331.444C216.874 350.218 230.109 363.368 237.614 367.596L303.258 394.551C279.411 381.867 286.362 359.617 291.208 349.837L328.628 282.29L371.757 207.766C392.281 173.466 370.171 149.521 358.121 141.804L201.145 75.5258C177.297 67.9148 160.976 81.4454 155.796 89.1621Z" fill="#D6D6D6"/>
+    </svg>
+    <div>
+      <h1>hakkahakka26</h1>
+      <div class="prize">Prize: <span class="num">KES 42,000</span></div>
+    </div>
+  </div>
+  <div class="clock" id="clock">
+    <div class="label" id="clock-label">Time left</div>
+    <div class="value num" id="clock-value">--:--</div>
+  </div>
+</header>
+
+<main>
+  <div class="notice" id="notice">Loading scores…</div>
+  <div class="head" aria-hidden="true">
+    <span>#</span><span>Team</span><span class="c-stack">Stack</span><span>Score</span>
+    <span class="c-breakdown">AC · Visual · Code · Build · Tests · Prompt</span><span class="c-status">Status</span><span>⚠</span>
+  </div>
+  <div class="board" id="board" role="list" aria-live="polite"></div>
+</main>
+
+<script>
+(() => {
+  const POLL_MS = 75_000;
+  const CONFIG_EVERY = 8;
+  const host = location.hostname.endsWith(".github.io") ? location.hostname.split(".")[0] : "MamboBryan";
+  const repo = (location.hostname.endsWith(".github.io") && location.pathname.split("/")[1]) || "hakkahakka26";
+  const api = (path) => `https://api.github.com/repos/${host}/${repo}/contents/${path}?ref=scores`;
+  const STACKS = { android: "Android", kmp: "KMP", flutter: "Flutter", "react-native": "React Native", ios: "iOS", unknown: "?" };
+  const STATUS = { building: "Building", grading: "Grading", scored: "Scored", build_failed: "Build failed", invalid: "Invalid", late: "Late", error: "Error" };
+
+  const board = document.getElementById("board");
+  const notice = document.getElementById("notice");
+  const clock = document.getElementById("clock");
+  const clockLabel = document.getElementById("clock-label");
+  const clockValue = document.getElementById("clock-value");
+  let deadline = null;
+  let entries = [];
+  let polls = 0;
+
+  const decode = (b64) => JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(b64.replace(/\s/g, "")), (c) => c.charCodeAt(0))));
+  const escape = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+  async function fetchJson(path) {
+    const response = await fetch(api(path), { headers: { Accept: "application/vnd.github+json" }, cache: "no-store" });
+    if (response.status === 403 || response.status === 429) {
+      const reset = Number(response.headers.get("x-ratelimit-reset")) * 1000;
+      const err = new Error("rate limited");
+      err.reset = reset;
+      throw err;
+    }
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return decode((await response.json()).content);
+  }
+
+  const ended = () => deadline && Date.now() >= deadline;
+
+  function sorted(list) {
+    return [...list].sort((a, b) =>
+      ((b.score ?? -1) - (a.score ?? -1)) ||
+      String(a.graded_at || "~").localeCompare(String(b.graded_at || "~")) ||
+      String(a.team).localeCompare(String(b.team)));
+  }
+
+  function rowHtml(entry, index, leaderScore) {
+    const b = entry.breakdown;
+    const breakdown = b ? [b.ac, b.visual, b.code, b.build, b.tests, b.prompt].join(" · ") : "–";
+    const scored = typeof entry.score === "number";
+    const isLeader = index === 0 && scored && entry.score === leaderScore && leaderScore > 0;
+    const scoreHtml = scored
+      ? `<span class="${isLeader ? "hl" : ""}">${entry.score}</span><small>/25</small>`
+      : `<small>–</small>`;
+    const status = entry.status || "scored";
+    const demo = ended() && index < 3 && scored ? `<span class="chip demo">Demo</span>` : "";
+    const flags = (entry.flags || []).length;
+    return `
+      <span class="rank num">${scored ? index + 1 : "–"}</span>
+      <span class="team">${escape(entry.team)}${entry.pr ? `<small class="num">PR #${escape(entry.pr)}</small>` : ""}</span>
+      <span class="c-stack"><span class="badge">${escape(STACKS[entry.stack] || entry.stack || "?")}</span></span>
+      <span class="score num">${scoreHtml}</span>
+      <span class="breakdown num c-breakdown">${breakdown}</span>
+      <span class="c-status"><span class="chip ${status === "scored" ? "idle" : ""}">${escape(STATUS[status] || status)}</span>${demo}</span>
+      <span class="flags" title="${escape((entry.flags || []).join(", "))}">${flags ? "⚠" : ""}</span>`;
+  }
+
+  function render() {
+    const list = sorted(entries);
+    if (!list.length) {
+      board.innerHTML = `<div class="empty">No submissions yet.</div>`;
+      return;
+    }
+    const before = new Map([...board.children].map((el) => [el.dataset.team, el.getBoundingClientRect().top]));
+    const leaderScore = list[0].score;
+    const existing = new Map([...board.children].map((el) => [el.dataset.team, el]));
+    board.querySelector(".empty")?.remove();
+
+    list.forEach((entry, index) => {
+      let el = existing.get(entry.team);
+      if (!el) {
+        el = document.createElement("div");
+        el.className = "row";
+        el.setAttribute("role", "listitem");
+        el.dataset.team = entry.team;
+      }
+      el.innerHTML = rowHtml(entry, index, leaderScore);
+      el.classList.toggle("first", index === 0 && typeof entry.score === "number" && entry.score > 0);
+      board.appendChild(el);
+      existing.delete(entry.team);
+    });
+    existing.forEach((el) => el.remove());
+
+    [...board.children].forEach((el) => {
+      const old = before.get(el.dataset.team);
+      if (old === undefined) return;
+      const delta = old - el.getBoundingClientRect().top;
+      if (!delta) return;
+      el.style.transition = "none";
+      el.style.transform = `translateY(${delta}px)`;
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        el.style.transition = "";
+        el.style.transform = "";
+      }));
+    });
+  }
+
+  function tick() {
+    if (!deadline) {
+      clockLabel.textContent = "Deadline";
+      clockValue.textContent = "not set";
+      return;
+    }
+    const left = Math.max(0, deadline - Date.now());
+    clock.classList.toggle("ended", left === 0);
+    clockLabel.textContent = left === 0 ? "Build window" : "Time left";
+    if (left === 0) {
+      clockValue.textContent = "Closed";
+      return;
+    }
+    const total = Math.floor(left / 1000);
+    const h = Math.floor(total / 3600);
+    const m = Math.floor((total % 3600) / 60);
+    const s = total % 60;
+    const pad = (n) => String(n).padStart(2, "0");
+    clockValue.textContent = h ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
+  }
+
+  let wasEnded = false;
+  setInterval(() => {
+    tick();
+    if (ended() !== wasEnded) {
+      wasEnded = ended();
+      render();
+    }
+  }, 250);
+
+  async function poll() {
+    try {
+      if (polls % CONFIG_EVERY === 0) {
+        const config = await fetchJson("config.json");
+        const parsed = Date.parse(config.deadline);
+        deadline = Number.isNaN(parsed) ? null : parsed;
+      }
+      const data = await fetchJson("leaderboard.json");
+      entries = Array.isArray(data) ? data.filter((e) => e && e.team) : [];
+      render();
+      notice.classList.remove("warn");
+      notice.textContent = `Updated ${new Date().toLocaleTimeString()} · refreshes every 75 s`;
+    } catch (error) {
+      notice.classList.add("warn");
+      notice.textContent = error.message === "rate limited"
+        ? `Rate limited by GitHub${error.reset ? ` until ${new Date(error.reset).toLocaleTimeString()}` : ""}. Keep this board open on the projector only.`
+        : `Couldn't load scores (${error.message}). Retrying in 75 s.`;
+    } finally {
+      polls += 1;
+      tick();
+    }
+  }
+
+  poll();
+  setInterval(poll, POLL_MS);
+})();
+</script>
+</body>
+</html>
