@@ -26,7 +26,7 @@ Fork PRs behave differently: they have no access to secrets, their `GITHUB_TOKEN
 1. Sign in to GitHub as the second account, then fork `MamboBryan/hakka26`.
 2. Clone the fork and add a submission:
    ```sh
-   gh repo clone <second-account>/hakkahakka26 && cd hakkahakka26
+   gh repo clone <second-account>/hakka26 && cd hakka26
    git checkout -b fork-test
    mkdir -p submissions/fork-test && cp -R dry-run/dry-good/. submissions/fork-test/
    rm -rf submissions/fork-test/app/app/build
