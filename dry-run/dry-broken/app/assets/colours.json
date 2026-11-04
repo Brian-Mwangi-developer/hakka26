@@ -1,0 +1,50 @@
+{
+  "otp": {
+    "light": {
+      "sheet": "#FFFFFF",
+      "scrim": "#99000000",
+      "text_primary": "#111111",
+      "text_secondary": "#5F6368",
+      "digit_filled_bg": "#12361B",
+      "digit_filled_text": "#FFFFFF",
+      "digit_focused_bg": "#FFFFFF",
+      "digit_focused_outline": "#111111",
+      "digit_empty_bg": "#F1F1F1",
+      "digit_empty_outline": "#E0E0E0",
+      "digit_placeholder": "#9E9E9E",
+      "button_bg": "#12361B",
+      "button_text": "#FFFFFF",
+      "button_disabled_bg": "#C9D1CB",
+      "link": "#12361B",
+      "success": "#1B7F3A",
+      "error": "#C62828"
+    },
+    "dark": {
+      "sheet": "#161A17",
+      "scrim": "#CC000000",
+      "text_primary": "#F5F5F5",
+      "text_secondary": "#B0B5B1",
+      "digit_filled_bg": "#2E7D45",
+      "digit_filled_text": "#FFFFFF",
+      "digit_focused_bg": "#161A17",
+      "digit_focused_outline": "#F5F5F5",
+      "digit_empty_bg": "#262B27",
+      "digit_empty_outline": "#353B36",
+      "digit_placeholder": "#6F7570",
+      "button_bg": "#2E7D45",
+      "button_text": "#FFFFFF",
+      "button_disabled_bg": "#2A302B",
+      "link": "#7BC795",
+      "success": "#7BC795",
+      "error": "#EF9A9A"
+    }
+  },
+  "thamani": {
+    "fog_ink": "#070B1A",
+    "clear_white": "#FFFFFF",
+    "thamani_blue": "#0050FF",
+    "signal_blue": "#0095FE",
+    "clear_cyan": "#05D3FF",
+    "acid_lemon": "#E8FF3A"
+  }
+}
