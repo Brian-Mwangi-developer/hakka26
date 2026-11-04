@@ -1,0 +1,16 @@
+.claude/
+.DS_Store
+build/
+.gradle/
+node_modules/
+.dart_tool/
+Pods/
+DerivedData/
+__pycache__/
+*.pyc
+.venv/
+local.properties
+.idea/
+*.iml
+.kotlin/
+docs/superpowers/
