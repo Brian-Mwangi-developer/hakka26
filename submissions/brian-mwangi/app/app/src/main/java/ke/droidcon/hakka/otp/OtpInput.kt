@@ -43,13 +43,15 @@ import androidx.compose.ui.unit.sp
 private const val PLACEHOLDER = "–"
 
 /**
- * Six circular digit boxes. Owns no state: it renders [state] and reports
- * each keystroke as an [OtpState] transition through [onStateChange].
+ * Six circular digit boxes. Owns no state: it renders [state] and reports each
+ * keystroke as a transition for the owner to apply to its latest [OtpState].
+ * Passing transitions rather than new states matters: keystrokes can arrive
+ * faster than recomposition, and a stale snapshot would drop digits.
  */
 @Composable
 fun OtpInput(
     state: OtpState,
-    onStateChange: (OtpState) -> Unit,
+    onUpdate: ((OtpState) -> OtpState) -> Unit,
     onDone: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -70,9 +72,9 @@ fun OtpInput(
                 digit = state.digits[index],
                 focused = state.focusedIndex == index,
                 focusRequester = focusRequesters[index],
-                onEnter = { onStateChange(state.enter(index, it)) },
-                onBackspace = { onStateChange(state.backspace(index)) },
-                onFocused = { onStateChange(state.focus(index)) },
+                onEdit = { fieldText -> onUpdate { it.edit(index, fieldText) } },
+                onBackspace = { onUpdate { it.backspace(it.focusedIndex) } },
+                onFocused = { onUpdate { it.focus(index) } },
                 onDone = onDone,
             )
         }
@@ -85,7 +87,7 @@ private fun DigitBox(
     digit: Char?,
     focused: Boolean,
     focusRequester: FocusRequester,
-    onEnter: (String) -> Unit,
+    onEdit: (String) -> Unit,
     onBackspace: () -> Unit,
     onFocused: () -> Unit,
     onDone: () -> Unit,
@@ -100,14 +102,9 @@ private fun DigitBox(
 
     BasicTextField(
         value = TextFieldValue(text, selection = TextRange(text.length)),
-        onValueChange = { value ->
-            when {
-                value.text.isEmpty() && text.isNotEmpty() -> onBackspace()
-                value.text != text -> onEnter(addedText(text, value.text))
-            }
-        },
+        onValueChange = { value -> onEdit(value.text) },
         singleLine = true,
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword, imeAction = ImeAction.Done),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
         keyboardActions = KeyboardActions(onDone = { onDone() }),
         textStyle = TextStyle(
             color = colors.digitFilledText,

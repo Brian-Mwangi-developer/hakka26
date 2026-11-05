@@ -103,6 +103,21 @@ class OtpStateTest {
     }
 
     @Test
+    fun aFieldReportingTheDigitItAlreadyHoldsChangesNothing() {
+        val state = typed("215")
+
+        assertSame(state, state.edit(2, "5"))
+    }
+
+    @Test
+    fun aFieldEditGoesToTheFocusedBoxAndAnEmptiedFieldClearsItsBox() {
+        val typedAhead = typed("21").edit(1, "15")
+
+        assertEquals("215", typedAhead.code)
+        assertEquals(listOf('2', null, '5', null, null, null), typedAhead.edit(1, "").digits)
+    }
+
+    @Test
     fun submitDoesNothingUntilAllSixDigitsAreFilled() {
         val partial = typed("12345")
 

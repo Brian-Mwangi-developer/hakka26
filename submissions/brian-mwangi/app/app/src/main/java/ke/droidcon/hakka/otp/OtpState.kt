@@ -42,6 +42,21 @@ data class OtpState(
         )
     }
 
+    /**
+     * Box [index]'s text field now reads [fieldText]. Compares it with the latest
+     * digit for that box, so a repeated or late IME update can't enter a digit twice.
+     * New input goes to the focused box, which can be ahead of the field the IME
+     * is still attached to when digits arrive quickly.
+     */
+    fun edit(index: Int, fieldText: String): OtpState {
+        val current = digits[index]?.toString().orEmpty()
+        return when {
+            fieldText == current -> this
+            fieldText.isEmpty() -> backspace(index)
+            else -> enter(focusedIndex, addedText(current, fieldText))
+        }
+    }
+
     /** Fills all six boxes from the first six digits in [text], e.g. "Your code is 482913". */
     fun paste(text: String): OtpState {
         val pasted = text.filter(::isAsciiDigit).take(OTP_LENGTH)

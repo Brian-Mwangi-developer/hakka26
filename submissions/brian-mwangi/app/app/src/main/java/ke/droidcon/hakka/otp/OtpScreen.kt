@@ -72,7 +72,7 @@ fun OtpScreen(
 
     OtpSheet(
         state = state,
-        onStateChange = { state = it },
+        onUpdate = { transition -> state = transition(state) },
         onSubmit = { state = state.submit(isValidCode) },
         onResend = { state = state.resend() },
     )
@@ -82,7 +82,7 @@ fun OtpScreen(
 @Composable
 fun OtpSheet(
     state: OtpState,
-    onStateChange: (OtpState) -> Unit,
+    onUpdate: ((OtpState) -> OtpState) -> Unit,
     onSubmit: () -> Unit,
     onResend: () -> Unit,
 ) {
@@ -128,7 +128,7 @@ fun OtpSheet(
                 textAlign = TextAlign.Center,
             )
             Spacer(Modifier.height(32.dp))
-            OtpInput(state = state, onStateChange = onStateChange, onDone = onSubmit)
+            OtpInput(state = state, onUpdate = onUpdate, onDone = onSubmit)
             Spacer(Modifier.height(28.dp))
             ResendLine(secondsLeft = state.resendSecondsLeft, canResend = state.canResend, onResend = onResend)
             Spacer(Modifier.height(16.dp))
