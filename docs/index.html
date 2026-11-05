@@ -68,6 +68,14 @@
   .chip.demo { background: var(--clear-white); color: var(--thamani-blue); margin-left: 0.4em; }
   .flags { font-size: 1em; text-align: center; }
   .empty { padding: 2em 0.8em; color: var(--muted); }
+  .notice button, .signin button { font: inherit; color: var(--clear-white); background: none; border: 0; padding: 0; text-decoration: underline; cursor: pointer; }
+  .signin { display: none; margin: 0 0 16px; padding: 16px; border: 1px solid var(--signal-blue); border-radius: 10px; font-size: 0.75em; max-width: 46em; }
+  .signin.open { display: block; }
+  .signin p { margin: 0 0 10px; }
+  .signin a { color: var(--clear-cyan); }
+  .signin form { display: flex; flex-wrap: wrap; gap: 8px; }
+  .signin input { flex: 1 1 16em; min-width: 0; font: inherit; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line); background: rgba(255,255,255,0.06); color: var(--clear-white); }
+  .signin form button { text-decoration: none; background: var(--thamani-blue); padding: 8px 16px; border-radius: 8px; }
 
   @media (max-width: 720px) {
     header { flex-direction: column; align-items: flex-start; }
@@ -102,6 +110,14 @@
 
 <main>
   <div class="notice" id="notice">Loading scores…</div>
+  <section class="signin" id="signin" aria-labelledby="signin-title">
+    <p id="signin-title"><strong>Keep the board live by signing in with GitHub.</strong> GitHub allows 60 requests an hour per network without signing in, and everyone on the venue Wi-Fi shares that limit.</p>
+    <p>1. <a id="token-link" target="_blank" rel="noopener">Create a read-only token</a> (it needs no permissions; just click <em>Generate token</em>).<br>2. Paste it here. It stays in this browser and is only sent to api.github.com.</p>
+    <form id="signin-form">
+      <input id="token-input" type="password" autocomplete="off" placeholder="github_pat_…" aria-label="GitHub token" required>
+      <button type="submit">Sign in</button>
+    </form>
+  </section>
   <div class="head" aria-hidden="true">
     <span>#</span><span>Team</span><span class="c-stack">Stack</span><span>Score</span>
     <span class="c-breakdown">AC · Visual · Code · Build · Tests · Prompt</span><span class="c-status">Status</span><span>⚠</span>
@@ -127,12 +143,44 @@
   let deadline = null;
   let entries = [];
   let polls = 0;
+  let configLoaded = false;
+
+  const TOKEN_KEY = "hakka26.github-token";
+  const signin = document.getElementById("signin");
+  const readToken = () => { try { return localStorage.getItem(TOKEN_KEY) || ""; } catch { return ""; } };
+  const writeToken = (value) => { try { value ? localStorage.setItem(TOKEN_KEY, value) : localStorage.removeItem(TOKEN_KEY); } catch {} };
+  let token = readToken();
+  document.getElementById("token-link").href =
+    `https://github.com/settings/personal-access-tokens/new?name=${encodeURIComponent(`${repo} leaderboard`)}` +
+    `&description=${encodeURIComponent("Read-only token for the hakkahakka26 leaderboard")}&expires_in=7`;
+  document.getElementById("signin-form").addEventListener("submit", (event) => {
+    event.preventDefault();
+    const input = document.getElementById("token-input");
+    token = input.value.trim();
+    input.value = "";
+    writeToken(token);
+    signin.classList.remove("open");
+    polls = 0;
+    poll();
+  });
+  notice.addEventListener("click", (event) => {
+    const action = event.target.dataset?.action;
+    if (action === "signin") signin.classList.add("open");
+    if (action === "signout") { token = ""; writeToken(""); poll(); }
+  });
 
   const decode = (b64) => JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(b64.replace(/\s/g, "")), (c) => c.charCodeAt(0))));
   const escape = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
   async function fetchJson(path) {
-    const response = await fetch(api(path), { headers: { Accept: "application/vnd.github+json" }, cache: "no-store" });
+    const headers = { Accept: "application/vnd.github+json" };
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const response = await fetch(api(path), { headers, cache: "no-store" });
+    if (response.status === 401 && token) {
+      token = "";
+      writeToken("");
+      throw new Error("token rejected");
+    }
     if (response.status === 403 || response.status === 429) {
       const reset = Number(response.headers.get("x-ratelimit-reset")) * 1000;
       const err = new Error("rate limited");
@@ -215,8 +263,8 @@
 
   function tick() {
     if (!deadline) {
-      clockLabel.textContent = "Deadline";
-      clockValue.textContent = "not set";
+      clockLabel.textContent = configLoaded ? "Deadline" : "Time left";
+      clockValue.textContent = configLoaded ? "not set" : "--:--";
       return;
     }
     const left = Math.max(0, deadline - Date.now());
@@ -249,17 +297,22 @@
         const config = await fetchJson("config.json");
         const parsed = Date.parse(config.deadline);
         deadline = Number.isNaN(parsed) ? null : parsed;
+        configLoaded = true;
       }
       const data = await fetchJson("leaderboard.json");
       entries = Array.isArray(data) ? data.filter((e) => e && e.team) : [];
       render();
       notice.classList.remove("warn");
-      notice.textContent = `Updated ${new Date().toLocaleTimeString()} · refreshes every 75 s`;
+      notice.innerHTML = `Updated ${new Date().toLocaleTimeString()} · refreshes every 75 s · ` +
+        (token ? `signed in · <button type="button" data-action="signout">sign out</button>` : `<button type="button" data-action="signin">sign in</button>`);
     } catch (error) {
       notice.classList.add("warn");
+      if (error.message === "rate limited" || error.message === "token rejected") signin.classList.add("open");
       notice.textContent = error.message === "rate limited"
-        ? `Rate limited by GitHub${error.reset ? ` until ${new Date(error.reset).toLocaleTimeString()}` : ""}. Keep this board open on the projector only.`
-        : `Couldn't load scores (${error.message}). Retrying in 75 s.`;
+        ? `GitHub's limit for signed-out viewers is used up${error.reset ? ` until ${new Date(error.reset).toLocaleTimeString()}` : ""}. Sign in below to keep the board live.`
+        : error.message === "token rejected"
+          ? "That token didn't work. Create a new one and sign in again."
+          : `Couldn't load scores (${error.message}). Retrying in 75 s.`;
     } finally {
       polls += 1;
       tick();

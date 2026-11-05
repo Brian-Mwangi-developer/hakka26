@@ -23,7 +23,7 @@ A 30-minute, AI-graded mobile hackathon at **droidcon Kenya 2026**.
    ```sh
    cp -r templates/android-compose submissions/<team-name>/app
    ```
-   Templates: `android-compose`, `compose-multiplatform`, `flutter`, `react-native`, `ios-swiftui`. Each template already contains the logo and `colours.json` from `assets/`.
+   Templates: `android-compose`, `compose-multiplatform`, `flutter`, `react-native` (bare), `expo`, `ios-swiftui`. Each template already contains the logo and `colours.json` from `assets/`.
 3. Add these files:
    ```
    submissions/<team-name>/
@@ -51,7 +51,7 @@ CI detects your stack from `app/`:
 | Detected by | Stack | Command |
 |---|---|---|
 | `pubspec.yaml` | flutter | `flutter build apk --debug && flutter test` |
-| `package.json` containing `react-native` | react-native | `npm ci && npx jest && (cd android && ./gradlew assembleDebug)` |
+| `package.json` containing `react-native` (bare or Expo) | react-native | `npm ci`, then `npx expo prebuild --platform android` if there's no `android/` folder, then `npx jest && (cd android && ./gradlew assembleDebug)` |
 | `*.xcodeproj` or `Package.swift`, no Gradle | ios | `xcodebuild build test -scheme App …` on an iPhone simulator, no signing |
 | Gradle with `kotlin("multiplatform")` | kmp | `./gradlew assembleDebug testDebugUnitTest` |
 | Other Gradle | android | `./gradlew assembleDebug testDebugUnitTest` |

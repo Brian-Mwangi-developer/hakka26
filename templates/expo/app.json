@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name": "hakka",
+    "slug": "hakka",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "ke.droidcon.hakka"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "ke.droidcon.hakka"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}

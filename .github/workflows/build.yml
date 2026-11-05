@@ -20,7 +20,7 @@ concurrency:
 
 jobs:
   validate:
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.SMALL_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 15
     outputs:
       valid: ${{ steps.validate.outputs.valid }}
@@ -66,7 +66,7 @@ jobs:
   detect:
     needs: validate
     if: needs.validate.outputs.valid == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.SMALL_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 15
     outputs:
       stack: ${{ steps.detect.outputs.stack }}
@@ -83,7 +83,7 @@ jobs:
   build:
     needs: [validate, detect]
     if: needs.detect.outputs.stack != 'unknown'
-    runs-on: ${{ needs.detect.outputs.stack == 'ios' && 'macos-latest' || 'ubuntu-latest' }}
+    runs-on: ${{ needs.detect.outputs.stack == 'ios' && (vars.MACOS_RUNNER || 'macos-latest') || (vars.BUILD_RUNNER || 'ubuntu-latest') }}
     timeout-minutes: 15
     outputs:
       build_ok: ${{ steps.summary.outputs.build_ok }}
@@ -159,7 +159,10 @@ jobs:
             case "$STACK" in
               android|kmp) chmod +x gradlew && ./gradlew assembleDebug --no-daemon ;;
               flutter) flutter build apk --debug ;;
-              react-native) npm ci && (cd android && chmod +x gradlew && ./gradlew assembleDebug --no-daemon) ;;
+              react-native)
+                npm ci
+                [ -d android ] || CI=1 npx expo prebuild --platform android --no-install
+                (cd android && chmod +x gradlew && ./gradlew assembleDebug --no-daemon) ;;
               ios) xcodebuild build -scheme App -destination "platform=iOS Simulator,id=$SIMULATOR" -clonedSourcePackagesDirPath ~/spm CODE_SIGNING_ALLOWED=NO ;;
             esac
           } 2>&1 | tee "$RUNNER_TEMP/build.log"
@@ -226,7 +229,7 @@ jobs:
   report:
     needs: [validate, detect, build]
     if: always()
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.SMALL_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 15
     steps:
       - uses: actions/download-artifact@v5

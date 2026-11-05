@@ -1,0 +1,44 @@
+name: Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+  public:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.event.repository.private == false
+    runs-on: ${{ vars.SMALL_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      # SECURITY: only switching Pages on needs admin rights, so the admin token is used for that step alone and only on main.
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+          token: ${{ secrets.PAGES_ADMIN_TOKEN || github.token }}
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+      - id: deployment
+        uses: actions/deploy-pages@v4

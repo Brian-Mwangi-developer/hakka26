@@ -19,7 +19,7 @@ concurrency:
 jobs:
   building:
     if: github.event.action == 'requested' && github.event.workflow_run.event == 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.SMALL_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 5
     steps:
       # SECURITY: workflow_run checks out main by default; PR code is never checked out or executed here.
@@ -39,7 +39,7 @@ jobs:
 
   grade:
     if: github.event.action == 'completed' && github.event.workflow_run.event == 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.SMALL_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 15
     steps:
       # SECURITY: workflow_run checks out main by default; PR code is never checked out or executed here.
