@@ -686,7 +686,7 @@ def main() -> int:
     parser.add_argument("--received-at", help="When the push was received (ISO-8601); defaults to now.")
     parser.add_argument("--mark-building", metavar="HEAD_SHA", help="Only mark the PR with this head commit as building.")
     parser.add_argument("--dry-run", action="store_true", help="Print the score; don't comment or touch the leaderboard.")
-    parser.add_argument("--repo", default=os.environ.get("GITHUB_REPOSITORY", "MamboBryan/hakka26"))
+    parser.add_argument("--repo", default=os.environ.get("GITHUB_REPOSITORY", "buildthamani/hakka26"))
     args = parser.parse_args()
 
     token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")

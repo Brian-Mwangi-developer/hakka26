@@ -129,7 +129,7 @@
 (() => {
   const POLL_MS = 75_000;
   const CONFIG_EVERY = 8;
-  const host = location.hostname.endsWith(".github.io") ? location.hostname.split(".")[0] : "MamboBryan";
+  const host = location.hostname.endsWith(".github.io") ? location.hostname.split(".")[0] : "buildthamani";
   const repo = (location.hostname.endsWith(".github.io") && location.pathname.split("/")[1]) || "hakka26";
   const api = (path) => `https://api.github.com/repos/${host}/${repo}/contents/${path}?ref=scores`;
   const STACKS = { android: "Android", kmp: "KMP", flutter: "Flutter", "react-native": "React Native", ios: "iOS", unknown: "?" };
